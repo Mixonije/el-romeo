@@ -11,8 +11,8 @@
       country: 'Schweiz',
       privacy: 'Datenschutz',
       p: [
-        'Wenn Sie online einen Termin buchen, speichern wir Ihren Namen, Ihre E-Mail-Adresse und Ihre Telefonnummer sowie die gewählte Leistung, das Datum und die Uhrzeit.',
-        'Wir verwenden diese Angaben nur, um Ihren Termin zu verwalten und Sie bei Bedarf zu kontaktieren. Wir verkaufen sie nicht und geben sie nicht weiter, ausser an technische Dienstleister, die für den Betrieb dieser Website nötig sind (Hosting und gegebenenfalls E-Mail-Versand).',
+        'Wenn Sie online einen Termin buchen, speichern wir Ihren Namen und Ihre Telefonnummer sowie die gewählte Leistung, das Datum und die Uhrzeit.',
+        'Wir verwenden diese Angaben nur, um Ihren Termin zu verwalten und Sie bei Bedarf zu kontaktieren. Wir verkaufen sie nicht und geben sie nicht weiter, ausser an technische Dienstleister, die für den Betrieb dieser Website nötig sind (Hosting).',
         'Diese Website setzt keine Tracking- oder Werbe-Cookies. In Ihrem Browser werden nur Ihre Sprach- und Währungseinstellung gespeichert.',
         'Sie können jederzeit Auskunft über Ihre gespeicherten Daten verlangen oder deren Löschung beantragen. Kontaktieren Sie uns dazu telefonisch oder direkt im Salon.',
       ],
@@ -23,8 +23,8 @@
       country: 'Switzerland',
       privacy: 'Privacy',
       p: [
-        'When you book online, we store your name, email address and phone number, plus the service, date and time you chose.',
-        'We only use this to manage your appointment and to contact you if needed. We do not sell it or pass it on, except to technical providers needed to run this website (hosting and, if used, email delivery).',
+        'When you book online, we store your name and phone number, plus the service, date and time you chose.',
+        'We only use this to manage your appointment and to contact you if needed. We do not sell it or pass it on, except to technical providers needed to run this website (hosting).',
         'This website sets no tracking or advertising cookies. Your browser only stores your language and currency choice.',
         'You can ask at any time what data we hold about you, or ask us to delete it. Call us or ask in the shop.',
       ],

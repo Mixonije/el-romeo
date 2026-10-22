@@ -7,8 +7,8 @@
   const st = {
     serviceId: Number(new URLSearchParams(location.search).get('service')),
     days: null, date: null, time: null, showAll: false, loadError: null, pageError: null,
-    form: { name: '', email: '', phone: '' },
-    done: null, // { booking, emailed } after a successful booking
+    form: { name: '', phone: '' },
+    done: null, // { booking } after a successful booking
   };
   let dialog = null;
 
@@ -166,7 +166,7 @@
     const s = service();
     const err = h('div');
     const input = (key, type, auto, ph, label) => {
-      const el = h('input', { class: 'input', id: `f-${key}`, name: key, type, autocomplete: auto, placeholder: ph, required: true, maxlength: key === 'email' ? '120' : '60' });
+      const el = h('input', { class: 'input', id: `f-${key}`, name: key, type, autocomplete: auto, placeholder: ph, required: true, maxlength: '60' });
       el.value = st.form[key];
       el.addEventListener('input', () => { st.form[key] = el.value; el.removeAttribute('aria-invalid'); });
       return h('div', { class: 'field' }, h('label', { for: `f-${key}` }, label), el);
@@ -190,7 +190,6 @@
           const f = st.form;
           const checks = [
             ['name', f.name.trim().length >= 2, 'bad_name'],
-            ['email', /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.trim()), 'bad_email'],
             ['phone', f.phone.replace(/\D/g, '').length >= 6, 'bad_phone'],
           ];
           const bad = checks.find(([, ok]) => !ok);
@@ -202,7 +201,7 @@
           try {
             const r = await api('/api/bookings', {
               method: 'POST',
-              body: { serviceId: st.serviceId, date: st.date, start: st.time, name: f.name, email: f.email, phone: f.phone, lang: state.lang, website: trap.value },
+              body: { serviceId: st.serviceId, date: st.date, start: st.time, name: f.name, phone: f.phone, lang: state.lang, website: trap.value },
             });
             st.done = r;
             renderDone();
@@ -221,7 +220,6 @@
         },
       },
         input('name', 'text', 'name', L.namePh, L.nameLabel),
-        input('email', 'email', 'email', L.emailPh, L.emailLabel),
         input('phone', 'tel', 'tel', L.phonePh, L.phoneLabel),
         h('div', { class: 'honeypot', 'aria-hidden': 'true' }, h('label', null, 'Website', trap)),
         h('div', { class: 'total' }, h('span', null, L.totalPrice), h('span', null, fmt.price(s.price, true, s.price_from))),
@@ -247,7 +245,7 @@
       h('button', { class: 'sheet-close', type: 'button', 'aria-label': L.close, onclick: () => d.close() }, '×'),
       h('div', { class: 'check-mark', html: '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 9.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>' }),
       h('h2', { class: 'serif-title', id: 'sheet-title', tabindex: '-1' }, L.doneTitle),
-      h('p', { class: 'lead' }, st.done.emailed ? L.doneEmailed : L.doneNotEmailed),
+      h('p', { class: 'lead' }, L.doneNotEmailed),
       h('div', { class: 'code-box' },
         h('p', { class: 'section-label' }, L.yourCode),
         h('div', { class: 'code-row' }, h('span', { class: 'code' }, b.code), copyBtn),

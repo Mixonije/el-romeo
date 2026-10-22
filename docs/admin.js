@@ -112,7 +112,6 @@
       h('div', { class: 'row-who' },
         h('strong', null, b.name),
         h('a', { href: `tel:${b.phone}` }, b.phone),
-        h('a', { href: `mailto:${b.email}` }, b.email),
       ),
       h('div', { class: 'row-what' }, `${svcName(b.service)} · ${fmt.price(b.service.price, true, b.service.price_from)}`, h('span', null, b.code)),
       h('div', { class: 'row-act' }, act),

@@ -7,7 +7,7 @@
 
   const CONFIG = __CONFIG__; // injected by scripts/build-demo.js from src/config.js
   const DEMO_LOGIN = { email: 'demo@donromeo.ch', password: 'demo1234' };
-  const KEY = 'drb-demo-db-v3-elromeo'; // bumped when seed data changes, so old demo data is not reused
+  const KEY = 'drb-demo-db-v4-phone'; // bumped when seed data changes, so old demo data is not reused
   const ADMIN_KEY = 'drb-demo-admin';
 
   window.DRB_ROUTES = { home: 'index.html', book: 'book.html', cancel: 'my-booking.html', impressum: 'impressum.html', adminLogin: 'admin-login.html', admin: 'admin.html' };
@@ -81,10 +81,10 @@
         const s = db.services[p % db.services.length];
         const start = open[0] + offset;
         if (start + s.duration_min > open[1]) continue;
-        const [name, email, phone] = people[p % people.length];
+        const [name, , phone] = people[p % people.length];
         db.bookings.push({
           id: db.nextId++, code: newCode(), service_id: s.id, service_name_de: s.name_de, service_name_en: s.name_en, price: s.price, price_from: s.price_from,
-          date, start_min: start, end_min: start + s.duration_min, name, email, phone, lang: 'de',
+          date, start_min: start, end_min: start + s.duration_min, name, phone, lang: 'de',
           status: p === 3 ? 'cancelled' : 'confirmed', cancelled_by: p === 3 ? 'customer' : null, created_at: new Date().toISOString(),
         });
         p++; added++;
@@ -114,15 +114,23 @@
       status: b.status, cancelledBy: b.cancelled_by, isPast: u < 0, canCancel: b.status === 'confirmed' && u >= CONFIG.cancelCutoffMinutes,
     };
   }
-  const presentAdmin = (b) => ({ ...present(b), id: b.id, email: b.email, phone: b.phone, createdAt: b.created_at });
+  const presentAdmin = (b) => ({ ...present(b), id: b.id, phone: b.phone, createdAt: b.created_at });
   const sorted = (db) => db.services.slice().sort((a, b) => a.sort - b.sort || a.id - b.id);
   const activeService = (db, id) => { const s = db.services.find((x) => x.id === Number(id)); if (!s || !s.active) fail('unknown_service'); return s; };
   const isAdmin = () => { try { return localStorage.getItem(ADMIN_KEY) === '1'; } catch { return false; } };
   const needAdmin = () => { if (!isAdmin()) fail('unauthorized', 401); };
-  const findRow = (db, email, code) => {
+  // Same normalising as the server: "079 123 45 67" and "+41791234567" are one number.
+  const cleanPhone = (v) => {
+    let x = String(v || '').replace(/[^\d+]/g, '').replace(/(?!^)\+/g, '');
+    if (x.startsWith('00')) x = `+${x.slice(2)}`;
+    else if (x.startsWith('0')) x = `+41${x.slice(1)}`;
+    return x;
+  };
+  const findRow = (db, phone, code) => {
     const c = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const b = db.bookings.find((x) => x.code === c);
-    if (!b || b.email !== String(email || '').trim().toLowerCase()) fail('not_found', 404);
+    const p = cleanPhone(phone);
+    if (!b || !p || cleanPhone(b.phone) !== p) fail('not_found', 404);
     return b;
   };
   function cleanService(input) {
@@ -156,7 +164,7 @@
         instagram: CONFIG.instagram, categories: CONFIG.categories, legal: CONFIG.legal, gallery: (CONFIG.gallery || []).map((g) => ({ ...g, src: g.src.replace(/^\//, '') })), address: CONFIG.address, phone: CONFIG.phone,
         note: CONFIG.note, defaultLang: CONFIG.defaultLang, currency: CONFIG.currency, altCurrency: CONFIG.altCurrency,
         services: sorted(db).filter((s) => s.active).map(publicService), hours: CONFIG.hours,
-        cancelCutoffMinutes: CONFIG.cancelCutoffMinutes, emailEnabled: false, today: n.date,
+        cancelCutoffMinutes: CONFIG.cancelCutoffMinutes, today: n.date,
       };
     }
     if (p === '/api/availability') {
@@ -174,27 +182,25 @@
       if (body.website) fail('rejected');
       const s = activeService(db, body.serviceId);
       const name = String(body.name || '').trim();
-      const email = String(body.email || '').trim().toLowerCase();
-      const phone = String(body.phone || '').replace(/[^\d+]/g, '');
+      const phone = cleanPhone(body.phone);
       if (name.length < 2) fail('bad_name');
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) fail('bad_email');
       if (phone.replace('+', '').length < 6) fail('bad_phone');
       const start = toMin(body.start);
       if (!freeStarts(db, body.date, s.duration_min, n).includes(start)) fail('slot_taken', 409);
-      const upcoming = db.bookings.filter((b) => (b.email === email || b.phone === phone) && b.status === 'confirmed' && until(n, b.date, b.start_min) >= 0);
+      const upcoming = db.bookings.filter((b) => b.phone === phone && b.status === 'confirmed' && until(n, b.date, b.start_min) >= 0);
       if (upcoming.length >= CONFIG.maxActivePerContact) fail('too_many', 409);
       let code; do { code = newCode(); } while (db.bookings.some((b) => b.code === code));
       const row = {
         id: db.nextId++, code, service_id: s.id, service_name_de: s.name_de, service_name_en: s.name_en, price: s.price, price_from: s.price_from,
-        date: body.date, start_min: start, end_min: start + s.duration_min, name, email, phone, lang: body.lang === 'en' ? 'en' : 'de',
+        date: body.date, start_min: start, end_min: start + s.duration_min, name, phone, lang: body.lang === 'en' ? 'en' : 'de',
         status: 'confirmed', cancelled_by: null, created_at: new Date().toISOString(),
       };
       db.bookings.push(row); save(db);
-      return { booking: present(row), emailed: false };
+      return { booking: present(row) };
     }
-    if (p === '/api/bookings/find') return { booking: present(findRow(db, body.email, body.code)) };
+    if (p === '/api/bookings/find') return { booking: present(findRow(db, body.phone, body.code)) };
     if (p === '/api/bookings/cancel') {
-      const b = findRow(db, body.email, body.code);
+      const b = findRow(db, body.phone, body.code);
       if (b.status !== 'confirmed') fail('already_cancelled', 409);
       if (!present(b).canCancel) fail('too_late', 409);
       b.status = 'cancelled'; b.cancelled_by = 'customer'; save(db);

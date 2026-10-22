@@ -14,7 +14,6 @@ if (fs.existsSync(envFile)) {
 const express = require('express');
 const config = require('./src/config');
 const bookings = require('./src/bookings');
-const mail = require('./src/mail');
 
 const PORT = Number(process.env.PORT) || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
@@ -25,7 +24,6 @@ const COOKIE = 'drb_admin';
 
 if (!ADMIN_PASSWORD) console.warn('[drb] ADMIN_PASSWORD is not set. The admin page will refuse every login until it is.');
 if (!ADMIN_EMAIL) console.warn('[drb] ADMIN_EMAIL is not set. Any email is accepted at admin login; only the password is checked.');
-if (!mail.enabled) console.warn('[drb] RESEND_API_KEY / MAIL_FROM not set. Booking codes are shown on screen only, not emailed.');
 
 const app = express();
 app.disable('x-powered-by');
@@ -105,7 +103,6 @@ const wrap = (fn) => async (req, res) => {
     res.status(500).json({ error: 'server_error' });
   }
 };
-const withTimeout = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(() => r(false), ms))]);
 
 // ---------- public API ----------
 app.get('/api/config', wrap(() => ({
@@ -125,31 +122,29 @@ app.get('/api/config', wrap(() => ({
   services: bookings.listServices(),
   hours: config.hours,
   cancelCutoffMinutes: config.cancelCutoffMinutes,
-  emailEnabled: mail.enabled,
   today: bookings.now().date,
 })));
 
 app.get('/api/availability', limit('avail', 120, 60_000), wrap((req) => bookings.availability(req.query.service)));
 
-app.post('/api/bookings', limit('book', 10, 60 * 60_000), wrap(async (req) => {
+app.post('/api/bookings', limit('book', 10, 60 * 60_000), wrap((req) => {
   const b = req.body || {};
   // Honeypot: real people never see or fill this field.
   if (b.website) throw new bookings.BookingError(400, 'rejected');
-  const { booking, email } = bookings.create({
-    serviceId: b.serviceId, date: b.date, start: b.start, name: b.name, email: b.email, phone: b.phone, lang: b.lang,
+  const booking = bookings.create({
+    serviceId: b.serviceId, date: b.date, start: b.start, name: b.name, phone: b.phone, lang: b.lang,
   });
-  const emailed = await withTimeout(mail.sendBookingCode(booking, email), 5000);
-  return { booking, emailed: Boolean(emailed) };
+  return { booking };
 }));
 
 app.post('/api/bookings/find', limit('lookup', 30, 10 * 60_000), wrap((req) => {
   const b = req.body || {};
-  return { booking: bookings.present(bookings.find(b.email, b.code)) };
+  return { booking: bookings.present(bookings.find(b.phone, b.code)) };
 }));
 
 app.post('/api/bookings/cancel', limit('lookup', 30, 10 * 60_000), wrap((req) => {
   const b = req.body || {};
-  return { booking: bookings.cancelByCustomer(b.email, b.code) };
+  return { booking: bookings.cancelByCustomer(b.phone, b.code) };
 }));
 
 // ---------- admin API ----------

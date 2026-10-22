@@ -4,7 +4,7 @@
   const app = document.getElementById('app');
 
   // step: 'form' -> 'confirm' (booking found, asking "are you sure?") -> 'result'
-  const st = { email: '', code: '', step: 'form', booking: null, error: null, ok: null };
+  const st = { phone: '', code: '', step: 'form', booking: null, error: null, ok: null };
 
   function statusEl(b) {
     const L = t();
@@ -43,18 +43,18 @@
         class: 'block', novalidate: true,
         onsubmit: async (e) => {
           e.preventDefault();
-          const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(st.email.trim());
+          const phoneOk = st.phone.replace(/\D/g, '').length >= 6;
           const codeOk = st.code.replace(/[^a-z0-9]/gi, '').length === 6;
-          if (!emailOk || !codeOk) {
-            const el = document.getElementById(emailOk ? 'code' : 'email');
+          if (!phoneOk || !codeOk) {
+            const el = document.getElementById(phoneOk ? 'code' : 'phone');
             el.setAttribute('aria-invalid', 'true'); el.focus();
-            st.error = emailOk ? L.errors.not_found : L.errors.bad_email;
+            st.error = phoneOk ? L.errors.not_found : L.errors.bad_phone;
             return render();
           }
           st.error = null;
           setBusy(findBtn, true, L.finding);
           try {
-            const { booking } = await api('/api/bookings/find', { method: 'POST', body: { email: st.email, code: st.code } });
+            const { booking } = await api('/api/bookings/find', { method: 'POST', body: { phone: st.phone, code: st.code } });
             st.booking = booking;
             st.step = 'confirm';
           } catch (ex) {
@@ -63,7 +63,7 @@
           render();
         },
       },
-        field('email', 'email', L.emailLabel, L.enterEmail, { autocomplete: 'email' }),
+        field('phone', 'tel', L.phoneLabel, L.phonePh, { autocomplete: 'tel', inputmode: 'tel' }),
         field('code', 'text', L.codeLabel, L.codePh, { autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', maxlength: '8' }),
         st.error ? errorBox(st.error) : null,
         h('div', { class: 'block' }, findBtn),
@@ -82,7 +82,7 @@
           const yes = h('button', { class: 'btn btn-danger-solid', type: 'button', onclick: async () => {
             setBusy(yes, true, L.finding);
             try {
-              const { booking } = await api('/api/bookings/cancel', { method: 'POST', body: { email: st.email, code: st.code } });
+              const { booking } = await api('/api/bookings/cancel', { method: 'POST', body: { phone: st.phone, code: st.code } });
               st.booking = booking; st.step = 'result'; st.ok = L.cancelled; st.error = null;
             } catch (ex) {
               st.error = ex.message;

@@ -4,7 +4,7 @@ const config = require('./config');
 const { nowInZone, addDays, weekday, toMinutes, toHHMM, isDate, minutesUntil } = require('./time');
 
 // Codes look like KTM-482. No I/L/O or 0/1: they get read out over the phone.
-// The email is the second factor, so 23^3 * 8^3 combinations is plenty behind a rate limit.
+// The phone number is the second factor, so 23^3 * 8^3 combinations is plenty behind a rate limit.
 const LETTERS = 'ABCDEFGHJKMNPQRSTUVWXYZ';
 const DIGITS = '23456789';
 
@@ -45,7 +45,7 @@ const stmt = {
   byCode: db.prepare(`SELECT * FROM bookings WHERE code = ?`),
   byId: db.prepare(`SELECT * FROM bookings WHERE id = ?`),
   codeExists: db.prepare(`SELECT 1 FROM bookings WHERE code = ?`),
-  futureForContact: db.prepare(`SELECT date, start_min FROM bookings WHERE (email = ? OR phone = ?) AND status = 'confirmed' AND date >= ?`),
+  futureForPhone: db.prepare(`SELECT date, start_min FROM bookings WHERE phone = ? AND status = 'confirmed' AND date >= ?`),
   insert: db.prepare(`INSERT INTO bookings (code, service_id, service_name_de, service_name_en, price, price_from, date, start_min, end_min, name, email, phone, lang)
                       VALUES (@code, @service_id, @service_name_de, @service_name_en, @price, @price_from, @date, @start_min, @end_min, @name, @email, @phone, @lang)`),
   cancel: db.prepare(`UPDATE bookings SET status = 'cancelled', cancelled_by = ?, cancelled_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = ? AND status = 'confirmed'`),
@@ -168,13 +168,17 @@ function present(row) {
 }
 
 function presentAdmin(row) {
-  return { ...present(row), id: row.id, email: row.email, phone: row.phone, createdAt: row.created_at, cancelledAt: row.cancelled_at };
+  return { ...present(row), id: row.id, phone: row.phone, createdAt: row.created_at, cancelledAt: row.cancelled_at };
 }
 
 const cleanName = (s) => String(s || '').replace(/\s+/g, ' ').trim();
-const cleanEmail = (s) => String(s || '').trim().toLowerCase();
-const cleanPhone = (s) => String(s || '').replace(/[^\d+]/g, '').replace(/(?!^)\+/g, '');
-const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s) && s.length <= 120;
+// One canonical form per number, so "079 123 45 67", "+41 79 123 45 67" and "0041791234567" all match.
+function cleanPhone(s) {
+  let p = String(s || '').replace(/[^\d+]/g, '').replace(/(?!^)\+/g, '');
+  if (p.startsWith('00')) p = `+${p.slice(2)}`;
+  else if (p.startsWith('0')) p = `+41${p.slice(1)}`; // Swiss local format
+  return p;
+}
 
 const create = db.transaction((input) => {
   const service = activeService(input.serviceId);
@@ -182,10 +186,8 @@ const create = db.transaction((input) => {
   if (typeof input.start !== 'string' || !/^\d{2}:\d{2}$/.test(input.start)) throw new BookingError(400, 'bad_time');
 
   const name = cleanName(input.name);
-  const email = cleanEmail(input.email);
   const phone = cleanPhone(input.phone);
   if (name.length < 2 || name.length > 60) throw new BookingError(400, 'bad_name');
-  if (!isEmail(email)) throw new BookingError(400, 'bad_email');
   if (phone.replace('+', '').length < 6 || phone.length > 20) throw new BookingError(400, 'bad_phone');
 
   const n = now();
@@ -197,7 +199,7 @@ const create = db.transaction((input) => {
   const free = freeStarts(input.date, service.duration_min, taken, n);
   if (!free.includes(start)) throw new BookingError(409, 'slot_taken');
 
-  const upcoming = stmt.futureForContact.all(email, phone, n.date).filter((b) => minutesUntil(n, b.date, b.start_min) >= 0);
+  const upcoming = stmt.futureForPhone.all(phone, n.date).filter((b) => minutesUntil(n, b.date, b.start_min) >= 0);
   if (upcoming.length >= config.maxActivePerContact) throw new BookingError(409, 'too_many');
 
   let code;
@@ -205,21 +207,22 @@ const create = db.transaction((input) => {
   stmt.insert.run({
     code, service_id: service.id, service_name_de: service.name_de, service_name_en: service.name_en, price: service.price, price_from: service.price_from ? 1 : 0,
     date: input.date, start_min: start, end_min: start + service.duration_min,
-    name, email, phone, lang: input.lang === 'en' ? 'en' : 'de',
+    name, email: '', phone, lang: input.lang === 'en' ? 'en' : 'de',
   });
-  return { booking: present(stmt.byCode.get(code)), email };
+  return present(stmt.byCode.get(code));
 });
 
-// Both the code and the email must match; a wrong pair gives the same answer as no booking.
-function find(email, codeInput) {
+// Both the code and the phone number must match; a wrong pair gives the same answer as no booking.
+function find(phone, codeInput) {
   const code = normalizeCode(codeInput);
   const row = code && stmt.byCode.get(code);
-  if (!row || row.email !== cleanEmail(email)) throw new BookingError(404, 'not_found');
+  const p = cleanPhone(phone);
+  if (!row || !p || cleanPhone(row.phone) !== p) throw new BookingError(404, 'not_found');
   return row;
 }
 
-function cancelByCustomer(email, code) {
-  const row = find(email, code);
+function cancelByCustomer(phone, code) {
+  const row = find(phone, code);
   if (row.status !== 'confirmed') throw new BookingError(409, 'already_cancelled');
   if (!present(row).canCancel) throw new BookingError(409, 'too_late');
   stmt.cancel.run('customer', row.id);

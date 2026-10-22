@@ -7,8 +7,8 @@ It's for a barbershop in Zürich. The site is in German by default (Swiss spelli
 | Page | What it does |
 | --- | --- |
 | `/` | Price list ("Preisliste") grouped Herren / Damen / Weitere Leistungen, "ab" prices, logo, CHF / EUR toggle, photos, opening hours, link to cancel |
-| `/book?service=<id>` | Pick service, day and time, then a dialog asks for name, email and phone. Booked straight away, with a code like `KTM-482` |
-| `/my-booking` | Customer enters email + code, sees the booking, confirms cancelling |
+| `/book?service=<id>` | Pick service, day and time, then a dialog asks for name and phone (no email). Booked straight away, with a code like `KTM-482` shown on screen |
+| `/my-booking` | Customer enters phone number + code, sees the booking, confirms cancelling |
 | `/admin/login` | Owner signs in with email + password |
 | `/admin` | Bookings by day with breaks shown (cancel any), Services (category, names, description, length, price, "ab" price; hide, reorder, add), Breaks & days off (block e.g. a lunch break on any day, or close whole days) |
 | `/impressum` | Impressum (company, owner, address, phone, UID) and a short privacy notice, built from `src/config.js`. A basic template, not legal advice |
@@ -31,7 +31,7 @@ cp .env.example .env     # then set ADMIN_EMAIL and ADMIN_PASSWORD
 npm start                # http://localhost:3000, admin at /admin
 ```
 
-Requires Node 20 or newer.
+Requires Node 20 or newer. Run the end-to-end API checks with `npm test` (starts its own server on a throwaway database).
 
 ## Change shop details
 
@@ -65,7 +65,6 @@ Requires Node 20 or newer.
 | --- | --- | --- |
 | `ADMIN_PASSWORD` | yes | Admin login password. Changing it signs everyone out |
 | `ADMIN_EMAIL` | recommended | Admin login email. If unset, any email is accepted and only the password is checked |
-| `RESEND_API_KEY`, `MAIL_FROM` | no | Turn on emailing the booking code (via resend.com). Without them the code is only shown on screen |
 | `PORT` | no | Default `3000` |
 | `SHOP_TZ` | no | Overrides `timezone` |
 | `DB_PATH` | no | SQLite file location. On a host, point it at a persistent disk |
@@ -85,7 +84,7 @@ Any Node host with a **persistent disk**, run as a **single instance**:
 ## How it works
 
 - Free times are inside opening hours, not on a closed day, at least 1 hour ahead, and not overlapping a confirmed booking. The server re-checks inside a transaction, so two people can't take the same time.
-- Codes are 3 letters + 3 digits with no look-alike characters. Looking up or cancelling needs **both** the email and the code, and is rate-limited per IP.
+- Codes are 3 letters + 3 digits with no look-alike characters. Looking up or cancelling needs **both** the phone number and the code, and is rate-limited per IP. Phone numbers are normalised (079…, +41 79…, 0041 79… all match).
 - The `/admin` page redirects to `/admin/login` unless the session cookie is valid. Every admin API also checks the cookie.
 
 ## Files
@@ -95,7 +94,6 @@ server.js              routes, admin session, page guard
 src/config.js          shop settings
 src/bookings.js        services, availability, booking, cancelling, closures
 src/db.js              SQLite schema (+ seeds services on first run)
-src/mail.js            optional Resend email with the booking code
 src/time.js            date/time helpers in the shop's time zone
 public/common.js       DE/EN dictionary, formatting, currency toggle, helpers
 public/home.js         price list page

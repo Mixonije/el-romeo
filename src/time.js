@@ -48,4 +48,4 @@ function minutesUntil(now, date, minutes) {
   return (dayNumber(date) - dayNumber(now.date)) * 1440 + minutes - now.minutes;
 }
 
-module.exports = { nowInZone, addDays, weekday, toMinutes, toHHMM, isDate, minutesUntil };
+export { nowInZone, addDays, weekday, toMinutes, toHHMM, isDate, minutesUntil };

@@ -1,7 +1,7 @@
 // Shop settings. Everything the owner might want to change lives here.
 // Services and prices are edited in the admin panel; the list below only seeds an empty database.
 
-module.exports = {
+export default {
   shopName: 'El Romeo',
   tagline: 'BARBERSHOP · ZÜRICH',   // small spaced line under the name in the footer
   logo: '/logo.svg',                 // drawn badge (public/logo.svg)
@@ -38,7 +38,7 @@ module.exports = {
   altCurrency: { code: 'EUR', rate: 1.06, roundTo: 1 }, // approximate rate: 1 CHF = 1.06 EUR
 
   // All times are wall-clock times in this zone, whatever zone the server runs in.
-  timezone: process.env.SHOP_TZ || 'Europe/Zurich',
+  timezone: 'Europe/Zurich',
 
   // Price list groups, in display order.
   categories: [

@@ -1,0 +1,40 @@
+# El Romeo on Cloudflare Workers: static pages from ./public, API + admin guard in worker/index.js, data in D1.
+name = "el-romeo"
+main = "worker/index.js"
+compatibility_date = "2026-05-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+# The Worker runs first only for the API and the admin pages; every other file is served straight from the edge.
+run_worker_first = ["/api/*", "/admin", "/admin/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "el-romeo"
+database_id = "00000000-0000-0000-0000-000000000000" # replaced by the real id from `wrangler d1 create el-romeo`
+migrations_dir = "migrations"
+
+# Attempt limits per visitor IP (period must be 10 or 60 seconds).
+[[ratelimits]]
+name = "LIMIT_BOOK"
+namespace_id = "1001"
+simple = { limit = 5, period = 60 }
+
+[[ratelimits]]
+name = "LIMIT_LOOKUP"
+namespace_id = "1002"
+simple = { limit = 10, period = 60 }
+
+[[ratelimits]]
+name = "LIMIT_LOGIN"
+namespace_id = "1003"
+simple = { limit = 5, period = 60 }
+
+[[ratelimits]]
+name = "LIMIT_READ"
+namespace_id = "1004"
+simple = { limit = 120, period = 60 }
+
+[observability]
+enabled = true

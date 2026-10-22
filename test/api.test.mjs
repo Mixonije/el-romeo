@@ -1,4 +1,4 @@
-// End-to-end API checks. Starts the server on a throwaway database, runs every check, stops it.
+// End-to-end API checks against the Cloudflare Worker: starts `wrangler dev` on a throwaway local D1, runs every check, stops it.
 //   npm test
 import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -8,18 +8,24 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dir = mkdtempSync(path.join(tmpdir(), 'elromeo-test-'));
-const PORT = 3499;
+const PORT = 8799;
 const B = `http://localhost:${PORT}`;
 const ADMIN = { email: 'owner@test.ch', password: 'test-only-password' };
+const wrangler = path.join(root, 'node_modules', '.bin', 'wrangler');
+const quiet = { cwd: root, env: { ...process.env, CI: '1', WRANGLER_SEND_METRICS: 'false' } };
 
-const server = spawn(process.execPath, ['server.js'], {
-  cwd: root,
-  env: { ...process.env, PORT: String(PORT), DB_PATH: path.join(dir, 'test.db'), ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.password },
-  stdio: ['ignore', 'pipe', 'pipe'],
-});
+// Fresh local D1 in a temp folder, with the real migrations applied.
 await new Promise((resolve, reject) => {
-  server.stdout.on('data', (d) => { if (String(d).includes('booking on')) resolve(); });
-  server.on('exit', (code) => reject(new Error(`server exited ${code}`)));
+  const p = spawn(wrangler, ['d1', 'migrations', 'apply', 'el-romeo', '--local', '--persist-to', dir], { ...quiet, stdio: 'ignore' });
+  p.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`migrations failed (${code})`))));
+});
+const server = spawn(wrangler, ['dev', '--local', '--port', String(PORT), '--persist-to', dir,
+  '--var', `ADMIN_EMAIL:${ADMIN.email}`, '--var', `ADMIN_PASSWORD:${ADMIN.password}`, '--var', 'DISABLE_LIMITS:1'], { ...quiet, stdio: ['ignore', 'pipe', 'pipe'] });
+await new Promise((resolve, reject) => {
+  const t = setTimeout(() => reject(new Error('wrangler dev did not start')), 60000);
+  const onData = (d) => { if (/Ready on/i.test(String(d))) { clearTimeout(t); resolve(); } };
+  server.stdout.on('data', onData); server.stderr.on('data', onData);
+  server.on('exit', (code) => reject(new Error(`wrangler dev exited ${code}`)));
 });
 
 let cookie = '';
@@ -97,7 +103,22 @@ try {
   expect('add service with all fields', [ns.status, ns.body.service.category, ns.body.service.price_from], [200, 'women', true]);
   expect('duration must fit 15-min grid', (await j('/api/admin/services', { method: 'POST', auth: true, body: { name_de: 'X Y', duration_min: 20, price: 5 } })).body.error, 'bad_duration');
 
+  // ---------- simultaneous bookings: exactly one may win ----------
+  const raceDay = av.days.slice(3).find((d) => d.slots.includes('11:00'));
+  const race = await Promise.all([1, 2, 3, 4, 5].map((i) => j('/api/bookings', { method: 'POST', body: { serviceId: men.id, date: raceDay.date, start: '11:00', name: `Race ${i}`, phone: `07900000${10 + i}` } })));
+  expect('5 at once for one slot: 1 wins', [race.filter((r) => r.status === 200).length, race.filter((r) => r.body.error === 'slot_taken').length], [1, 4]);
+
   // ---------- pages ----------
+  const page = async (p, opts) => fetch(B + p, { redirect: 'manual', ...opts });
+  for (const p of ['/', '/book', '/my-booking', '/impressum', '/admin/login']) {
+    const r = await page(p);
+    expect(`page ${p}`, [r.status, (r.headers.get('content-security-policy') || '').includes("frame-ancestors 'none'")], [200, true]);
+  }
+  const adminPage = await page('/admin', { headers: { cookie } });
+  expect('/admin page with session', [adminPage.status, (await adminPage.text()).includes('admin.js')], [200, true]);
+  expect('/admin/login redirects when signed in', (await page('/admin/login', { headers: { cookie } })).headers.get('location'), '/admin');
+  expect('tampered session refused', (await j('/api/admin/bookings', { auth: false, method: 'GET' }).then(() => fetch(`${B}/api/admin/bookings`, { headers: { cookie: 'drb_admin=9999999999999.abc' } }))).status, 401);
+
   expect('/impressum served', (await j('/impressum')).status, 200);
   expect('/admin redirects when signed out', (await fetch(`${B}/admin`, { redirect: 'manual' })).status, 302);
 } finally {

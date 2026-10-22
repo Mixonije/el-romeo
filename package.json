@@ -1,19 +1,22 @@
 {
   "name": "el-romeo",
   "version": "1.0.0",
-  "main": "server.js",
+  "main": "worker/index.js",
   "scripts": {
-    "start": "node server.js",
-    "build:demo": "node scripts/build-demo.js",
-    "test": "node test/api.test.mjs"
+    "dev": "wrangler d1 migrations apply el-romeo --local && wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate": "wrangler d1 migrations apply el-romeo --remote",
+    "test": "node test/api.test.mjs",
+    "build:demo": "node scripts/build-demo.mjs",
+    "seed-sql": "node scripts/seed-sql.mjs"
   },
   "description": "Booking app for El Romeo barbershop in Zürich",
-  "dependencies": {
-    "better-sqlite3": "^12.11.1",
-    "express": "^5.2.1"
-  },
   "engines": {
     "node": ">=20"
   },
-  "private": true
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "wrangler": "^4.86.0"
+  }
 }

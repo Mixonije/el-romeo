@@ -1,16 +1,18 @@
 // Builds a static, server-free demo of the site into docs/ (for GitHub Pages or any static host).
 // The real frontend files are copied as they are; demo/demo-api.js answers the API calls in the browser.
 //   npm run build:demo
-const fs = require('fs');
-const path = require('path');
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import config from '../src/config.js';
 
-const root = path.join(__dirname, '..');
+const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const src = path.join(root, 'public');
 const out = path.join(root, 'docs');
-const config = require('../src/config');
 
 fs.rmSync(out, { recursive: true, force: true });
 fs.cpSync(src, out, { recursive: true });
+fs.rmSync(path.join(out, '_headers'), { force: true }); // Cloudflare-only file, not for GitHub Pages
 
 for (const file of fs.readdirSync(out).filter((f) => f.endsWith('.html'))) {
   const p = path.join(out, file);

@@ -1,5 +1,6 @@
 # El Romeo on Cloudflare Workers: static pages from ./public, API + admin guard in worker/index.js, data in D1.
 name = "el-romeo"
+account_id = "413b71fcd139fd816f2b60aad9ac38b7" # personal account (mihajlostojanovic0606@gmail.com)
 main = "worker/index.js"
 compatibility_date = "2026-05-01"
 
@@ -12,7 +13,7 @@ run_worker_first = ["/api/*", "/admin", "/admin/*"]
 [[d1_databases]]
 binding = "DB"
 database_name = "el-romeo"
-database_id = "00000000-0000-0000-0000-000000000000" # replaced by the real id from `wrangler d1 create el-romeo`
+database_id = "15e289ca-b83c-47dd-a387-83c15a673257"
 migrations_dir = "migrations"
 
 # Attempt limits per visitor IP (period must be 10 or 60 seconds).
